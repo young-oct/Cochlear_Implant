@@ -7,6 +7,12 @@ import os.path
 
 import cv2
 from matplotlib import pyplot as plt
+from skimage.morphology import square
+from skimage.filters import median
+import numpy as np
+from skimage import exposure
+from skimage import img_as_float, img_as_ubyte
+
 
 
 def video2frame():
@@ -78,12 +84,24 @@ if __name__ == '__main__':
 
     title = ['full insertion', 'partial insertion 2', 'partial insertion 3', 'full migration']
     for _ in range(len(a)):
-        plt.imshow(a[_], 'gray', aspect=a[_].shape[1] / a[_].shape[0])
+        temp = img_as_float(a[_])
+        # temp = median(temp,square(3))
+
+        img_rescale =  exposure.equalize_adapthist(temp, clip_limit=0.025)
+
+        img_rescale = img_as_ubyte(img_rescale)
+
+        img_rescale = median(img_rescale, square(4))
+
+        plt.imshow(img_rescale, 'gray', aspect=a[_].shape[1] / a[_].shape[0], vmin=75,vmax =250)
         # plt.title(title[_])
         plt.axis('off')
         plt.tight_layout()
-        file_name = output_path + title[_] + '.jpeg'
-        plt.savefig(file_name,
-                    dpi=800,
-                    transparent=True, bbox_inches='tight', pad_inches=0, format='jpeg')
+        # file_name = output_path + title[_] + '.jpeg'
+        # plt.savefig(file_name,
+        #             dpi=800,
+        #             transparent=True, bbox_inches='tight', pad_inches=0, format='jpeg')
         plt.show()
+
+    # plt.hist(img_rescale.flatten())
+    # plt.show()
