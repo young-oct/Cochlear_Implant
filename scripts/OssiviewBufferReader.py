@@ -21,7 +21,7 @@ class OssiviewBufferReader:
         else:
             self.data  = self._getDataV2()
         
-    def _getDataV2(self, copy = False):
+    def _getDataV2(self):
 
         # if not copy == True:
         with open(self.filePath,'rb') as f:
@@ -35,11 +35,9 @@ class OssiviewBufferReader:
                     Dim["Z"] = 2 * Dim["Z"]
                 elif(Buffer["DataType"] == "struct __half2"):
 
-                    if not copy:
-
-                        Dim["Z"] = 2 * Dim["Z"]
-                    else:
-                        Dim["Z"] = Dim["Z"]
+                    Dim["Z"] = 2 * Dim["Z"]
+                    # else:
+                    #     Dim["Z"] = Dim["Z"]
                 
                 
                 dataLength = Dim["N"]*Dim['Z']*Dim['X']*Dim['Y']
@@ -94,7 +92,7 @@ class OssiviewBufferReader:
         self.data[commonName] = data
 
     def updateDataV2(self, data):
-        self.data= data
+        self.data = data.astype(np.float16)
 
     def export(self, filePath):
         #Regenerate the buffer params
@@ -161,7 +159,7 @@ class OssiviewBufferReader:
         Dim["N"] = np.shape(buf)[0]
         Dim["Y"] = np.shape(buf)[1]
         Dim["X"] = np.shape(buf)[2]
-        Dim["Z"] = np.shape(buf)[3]
+        Dim["Z"] = np.shape(buf)[3] //2
 
 
         self.metaData['DataParameters'][0]['Dim'] = Dim
@@ -182,7 +180,7 @@ class OssiviewBufferReader:
         # Update the file to use the updated file
         self.filePath = filePath
         self.header = OssiviewDataHeader(filePath)
-        self.data = self._getDataV2(copy=True)
+        self.data = self._getDataV2()
             
 # if __name__ == "__main__":
 #     file = r'/Users/youngwang/Desktop/SPORCO/Data/2020-May-26  12.36.40 PM'
