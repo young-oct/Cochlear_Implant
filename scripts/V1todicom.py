@@ -31,7 +31,7 @@ def loadV1(input_file):
 
     data = clean(data)
 
-    return median(data, cube(2))
+    return median(data, cube(3))
 
 
 def imag2uint(data):
@@ -58,7 +58,7 @@ def clean(data):
     # data[:,:,256] = 0
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
-            if np.sqrt((i - 256) ** 2 + (j - 256) ** 2) >= 240:
+            if np.sqrt((i - 256) ** 2 + (j - 256) ** 2) >= 230:
                 data[i, j, :] = 0
 
     return data
@@ -147,11 +147,13 @@ def oct_to_dicom(oct_file, seriesdescription,
 if __name__ == '__main__':
 
     oct_files = []
-    directory = '/Users/youngwang/Desktop/CI_P'
+    directory = '/Users/youngwang/Desktop/CI_bin'
     import glob
 
-    for filepath in glob.iglob(r'/Users/youngwang/Desktop/CI_P/*.bin'):
+    for filepath in glob.iglob(r'/Users/youngwang/Desktop/CI_bin/*.bin'):
         oct_files.append(filepath)
+
+    oct_files.sort()
 
     prefix_path = '/Users/youngwang/Desktop/DICOM Export'
     dis_path = list(string.ascii_lowercase)[0:len(oct_files)]
@@ -167,7 +169,12 @@ if __name__ == '__main__':
             pass
 
     dicom_prefix = 'CI-cadaver'
-    seriesdescription = dis_path
+    seriesdescription = ['Full Insertion',
+                         'Partial Insertion I',
+                         'Partial Insertion II',
+                         'Full Withdrawal I',
+                         'Full Withdrawal II',
+                         'Full Withdrawal III']
 
     for i in range(len(oct_files)):
         export_path = join(prefix_path, dis_path[i])
