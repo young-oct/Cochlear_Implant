@@ -37,8 +37,8 @@ if __name__ == '__main__':
     plt.tight_layout(pad=0.5)
 
     file_name = output_path + 'Figure 2' + '.jpeg'
-    plt.savefig(file_name,
-                dpi=800,
-                transparent=True, bbox_inches='tight', pad_inches=0, format='jpeg')
+    # plt.savefig(file_name,
+    #             dpi=800,
+    #             transparent=True, bbox_inches='tight', pad_inches=0, format='jpeg')
     plt.show()
 
