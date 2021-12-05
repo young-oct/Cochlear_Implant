@@ -1,37 +1,34 @@
 # -*- coding: utf-8 -*-
-# @Time    : 2021-11-26 7:35 p.m.
+# @Time    : 2021-12-03 1:12 p.m.
 # @Author  : young wang
-# @FileName: V1todicom.py
+# @FileName: geoCorrection.py
 # @Software: PyCharm
+
 
 import pydicom
 import numpy as np
-import concurrent
-import glob
-from functools import partial
-
-
 from OssiviewBufferReader import OssiviewBufferReader
 from os.path import join, isfile
 from pydicom.uid import generate_uid
-from skimage.filters import median
-from skimage.morphology import cube
-import matplotlib.pyplot as plt
-import string
 import os
+from matplotlib import pyplot as plt
+from scipy.interpolate import griddata
 
 
-def loadV1(input_file):
-    obr = OssiviewBufferReader(input_file)
-    data = obr.data['3D Buffer'].squeeze()
 
-    data = 20 * np.log10(abs(data))
+def load_from_oct_file(oct_file):
+    """
+    read .oct file uising OssiviewBufferReader
+    export an array in the shape of [512,512,330]
+    the aarry contains pixel intensity data(20log) in float16 format
+    """
+    obr = OssiviewBufferReader(oct_file)
+    data_fp16 = np.squeeze(obr.data)
 
-    data = imag2uint(data)
+    data = imag2uint(data_fp16)
 
-    data = clean(data)
-
-    return median(data, cube(3))
+    clean_data = clean(data)
+    return clean_data
 
 
 def imag2uint(data):
@@ -52,10 +49,9 @@ def imag2uint(data):
 
 
 def clean(data):
-
+    #
     top = 30
     data[:, :, 0:top] = 0
-    # data[:,:,256] = 0
     for i in range(data.shape[0]):
         for j in range(data.shape[1]):
             if np.sqrt((i - 256) ** 2 + (j - 256) ** 2) >= 230:
@@ -64,14 +60,14 @@ def clean(data):
     return data
 
 
-def oct_to_dicom(oct_file, seriesdescription,
+def oct_to_dicom(oct_file,PatientName, seriesdescription,
                  dicom_folder, dicom_prefix):
     """
     convert pixel array [512,512,330] to DICOM format
     using MRI template, this template will be deprecated
     in the future once OCT template is received
     """
-    data = loadV1(oct_file)
+    data = load_from_oct_file(oct_file)
 
     dss = []
 
@@ -103,7 +99,7 @@ def oct_to_dicom(oct_file, seriesdescription,
         z = bottom + (i * 0.03)
 
         # update meta properties
-        ds.PixelSpacing = [0.05, 0.05]  # pixel spacing in x, y planes [mm]
+        ds.PixelSpacing = [0.02, 0.02]  # pixel spacing in x, y planes [mm]
         ds.SliceThickness = 0.03  # slice thickness in axial(z) direction [mm]
         ds.SpacingBetweenSlices = 0.03  # slice spacing in axial(z) direction [mm]
         ds.SliceLocation = '%0.2f' % z  # slice location in axial(z) direction
@@ -119,7 +115,7 @@ def oct_to_dicom(oct_file, seriesdescription,
         ds.PerformingPhysicianName = ''
         ds.InstitutionalDepartmentName = ''
         ds.ManufacturerModelName = 'Mark II'
-        ds.PatientName = 'cadaver temporal bone'
+        ds.PatientName = PatientName
         ds.PatientBirthDate = '20201123'
         ds.PatientAddress = ''
 
@@ -147,44 +143,68 @@ def oct_to_dicom(oct_file, seriesdescription,
 if __name__ == '__main__':
 
     oct_files = []
-    directory = '/Users/youngwang/Desktop/CI_bin'
+    directory = '/Users/youngwang/Desktop/GeoCorrection'
     import glob
 
-    for filepath in glob.iglob(r'/Users/youngwang/Desktop/CI_bin/*.bin'):
+    for filepath in glob.iglob(r'/Users/youngwang/Desktop/GeoCorrection/*.oct'):
         oct_files.append(filepath)
 
     oct_files.sort()
 
-    prefix_path = '/Users/youngwang/Desktop/DICOM Export'
-    dis_path = list(string.ascii_lowercase)[0:len(oct_files)]
-    export_paths= []
-    for i in range(len(dis_path)):
+    raw_data = load_from_oct_file(oct_files[0])
 
-        path = join(prefix_path,dis_path[i])
-        export_paths.append(path)
+    test_slice = np.rot90(raw_data[256,:,:])
+    plt.imshow(test_slice)
 
-        if not os.path.exists(path):
-            os.mkdir(path)
-        else:
-            pass
+    plt.show()
+    #
+    import polarTransform
+    #
+    # # imagec = plt.imread('/Users/youngwang/Desktop/a109560e-fa1e-4bb2-916b-d5a851de7051.jpeg')
+    # # image=np.mean(imagec,axis=2)
+    #
+    # opening_angle= 10 #deg
+    # polarImage, ptSettings = polarTransform.convertToCartesianImage(test_slice.T,
+    #                                                                 initialRadius=0,
+    #                                                                 finalRadius=330,
+    #                                                                 initialAngle= -opening_angle*np.pi/360,
+    #                                                                 finalAngle= opening_angle*np.pi/360,
+    #                                                                 imageSize=(512,330))
+    #
+    # fig,ax = plt.subplots(1,2)
+    # ax[0].imshow(test_slice.T)
+    # ax[1].imshow(polarImage.T)
+    # # #
+    # plt.show()
+    # #
+    opening_angle = 10  # deg
+    polarImage, ptSettings = polarTransform.convertToCartesianImage(test_slice.T,
+                                                                    initialRadius=0,
+                                                                    finalRadius=660,
+                                                                    initialAngle=-opening_angle * np.pi / 360,
+                                                                    finalAngle=opening_angle * np.pi / 360,
+                                                                   )
 
-    dicom_prefix = 'CI-cadaver'
-    seriesdescription = ['Full Insertion',
-                         'Partial Insertion I',
-                         'Partial Insertion II',
-                         'Full Withdrawal I',
-                         'Full Withdrawal II',
-                         'Full Withdrawal III']
-
-    for i in range(len(oct_files)):
-        export_path = join(prefix_path, dis_path[i])
-
-        if not os.path.exists(export_path):
-            os.mkdir(export_path)
-        else:
-            pass
-
-        oct_to_dicom(oct_file = oct_files[i],
-                     seriesdescription = seriesdescription[i],
-                     dicom_folder =export_path,
-                     dicom_prefix = dicom_prefix)
+    fig, ax = plt.subplots(1, 2)
+    ax[0].imshow(test_slice.T)
+    ax[1].imshow(polarImage.T)
+    plt.show()
+    # #
+    # # plt.show()
+    #
+    # # dicom_prefix = 'Phantom'
+    # # seriesdescription = 'Corrected'
+    # #
+    # # export_path = '/Users/youngwang/Desktop/GeoCorrection/After'
+    # #
+    # # if not os.path.exists(export_path):
+    # #     os.mkdir(export_path)
+    # # else:
+    # #     pass
+    # #
+    # # PatientName = 'Phantom'
+    # # oct_to_dicom(oct_file = oct_files[0],PatientName = PatientName,
+    # #              seriesdescription = seriesdescription,
+    # #              dicom_folder =export_path,
+    # #              dicom_prefix = dicom_prefix)
+    # #
