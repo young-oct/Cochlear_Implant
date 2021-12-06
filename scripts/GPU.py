@@ -1,14 +1,32 @@
+# -*- coding: utf-8 -*-
+# @Time    : 2021-12-05 4:30 p.m.
+# @Author  : young wang
+# @FileName: GPU.py
+# @Software: PyCharm
+import numba
 import pydicom
 import numpy as np
+from scipy import interpolate
 from OssiviewBufferReader import OssiviewBufferReader
 from os.path import join, isfile
 from pydicom.uid import generate_uid
-import os
 from matplotlib import pyplot as plt
+import naturalneighbor
+
+import os
+# from fast_interp import interp2d
+from scipy.interpolate import interp2d
 from scipy.interpolate import griddata
 import math
 import time
 from multiprocessing import cpu_count, Pool, set_executable
+from numba import jit, njit
+import numba_scipy as ns
+from numba import vectorize,guvectorize
+
+from interpolation.splines import LinearSpline, CubicSpline
+
+from interpolation.splines import UCGrid, CGrid, nodes
 
 
 def arrTolist(volume, Yflag=False):
@@ -177,8 +195,9 @@ def oct_to_dicom(data, PatientName, seriesdescription,
         all_files_exist = all_files_exist and isfile(dicom_file)
     return all_files_exist
 
-
+# @njit
 def cooridCO(test_slice):
+
     '''since X and Y correction can be done independently with respect to Z,
     here we replace X_dim, Y_dim mentioend in Josh's proposal as i_dim
     for detailed math, see johs's proposal
@@ -195,8 +214,8 @@ def cooridCO(test_slice):
     '''
 
     i_dim, zdim, zmax = 512, 330, 330 * 4
-    _iz = np.zeros((i_dim, zdim, 2))  # contruct iz plane
-    _v = np.zeros((i_dim, zdim))
+    _iz = np.zeros((i_dim, zdim, 2),dtype=np.float64)  # contruct iz plane
+    _v = np.zeros((i_dim, zdim),dtype=np.float64)
 
     i0, z0 = int(i_dim / 2), zmax  # i0 is half of the i dimension
 
@@ -215,17 +234,45 @@ def cooridCO(test_slice):
             _v[i, z] = test_slice[i, -z] # store the pixel date temporally and flip along the colume
                                         #axis
 
-    xq, zq = np.mgrid[0:i_dim, 0:zdim]  # create a rectangular grid out of an array of x values
-    # and an array of y values.
+    step_x, step_z = complex(0,1)*i_dim, complex(0,1)*zdim
+    #
+    # xvals = np.arange(0, int(i_dim), 1)
+    # yvals = np.arange(0, int(zdim), 1)
+    #
+    # _iz = _iz.reshape(i_dim * zdim, 2)
+    xq, zq = np.mgrid[0:int(i_dim):step_x, 0:int(zdim):step_z] # create a rectangular grid out of an array of x values
+    #
+    # f = interpolate.interp2d(xq, zq,  _v.flatten(), kind='cubic')
+    grid_ranges = [[0, i_dim, complex(0,1)*i_dim], [0, zdim, complex(0,1)*zdim]]
+    v = naturalneighbor.griddata(_iz.reshape(i_dim * zdim, 2), _v.flatten(), grid_ranges)
+    return v
+    # return np.fliplr(v) # flip it from left to right aka horizontal flip
+#
+# @njit
+# def meshgrid(i_dim, zdim):
+#     xvals = np.arange(0, int(i_dim), 1)
+#     yvals = np.arange(0, int(zdim), 1)
+#     xx = np.empty((len(xvals), len(yvals)))
+#     for j, y in enumerate(yvals):
+#         for i, x in enumerate(xvals):
+#             xx[i, j] = x
+#
+#     yy = np.empty((len(xvals), len(yvals)))
+#     for i, x in enumerate(xvals):
+#         yy[i, :] = yvals
+#
+#     return xx,yy
 
-    # Interpolate unstructured D-D data,
-    # points, pixel values, points at which to interpolate the data
-    v = griddata(_iz.reshape(i_dim * zdim, 2), _v.flatten(), (xq, zq), method='linear')
-
-    return np.fliplr(v) # flip it from left to right aka horizontal flip
-
+# @njit
+# @vectorize
+# @guvectorize([float64[:,:,:],int64,int64, float64[:,:],int64[:,:],int64[:,:]], )
+# @njit
+# def Interdata(_iz,i_dim,zdim,_v,xq,zq):
+#     v = griddata(_iz.reshape(i_dim * zdim, 2), _v.flatten(), (xq, zq), method='linear')
+#     return v
 
 if __name__ == '__main__':
+    import numpy as np
 
     oct_files = []
     directory = '/Users/youngwang/Desktop/GeoCorrection'
@@ -238,42 +285,171 @@ if __name__ == '__main__':
 
     raw_data = load_from_oct_file(oct_files[0])
 
-    start = time.time()
+    # start = time.time()
 
-    x_list = arrTolist(raw_data, Yflag=False)
+    # x_list = arrTolist(raw_data[0:2,:,:], Yflag=False)
+    stack = raw_data[256,:,:]
+    a = cooridCO(stack)
 
-    with Pool(processes=cpu_count()) as p:
-        results_list = p.map(cooridCO, x_list)
+    a = a.reshape(a.shape[0]*a.shape[1],2)
+    func = interpolate.Rbf(a[0], a[1], stack.flatten(), kind='cubic')
 
-        p.close()
-        p.join()
+    plt.imshow(stack)
+    plt.show()
 
-    data_x = listtoarr(results_list, Yflag=False)
-    data_xc = np.nan_to_num(data_x).astype(np.uint16)
+    # x, y = np.mgrid[0:512, 0:330]
+    #
+    # # x, y = np.mgrid[0:511, -1:1:20j]  # 生成(-1,1)间15*15的网格坐标点
+    #
+    # f = interp2d(x, y, stack.flatten(), kind='cubic')  # 一阶linear,三阶cubic,五阶quintic
+    #
+    # xnew = np.linspace(-1, 1, 51)  # 规定使用一维数组，而不能使用二维坐标点
+    # ynew = np.linspace(-1, 1, 33)
+    # znew = f(xnew, ynew)
+    # plt.imshow(znew)
+    # plt.show()
 
-    y_list = arrTolist(data_xc, Yflag=True)
+    # start = time.time()
+    # a = cooridCO(stack)
+    # end = time.time()
+    # print(end-start)
 
-    with Pool(processes=cpu_count()) as p:
-        results_list = p.map(cooridCO, y_list)
 
-        p.close()
-        p.join()
+    #
+    # with Pool(processes=cpu_count()) as p:
+    #     results_list = p.map(cooridCO, x_list)
+    #
+    #     p.close()
+    #     p.join()
+    #
+    # data_x = listtoarr(results_list, Yflag=False)
+    # data_xc = np.nan_to_num(data_x).astype(np.uint16)
+    #
+    # y_list = arrTolist(data_xc, Yflag=True)
+    #
+    # with Pool(processes=cpu_count()) as p:
+    #     results_list = p.map(cooridCO, y_list)
+    #
+    #     p.close()
+    #     p.join()
+    #
+    # data_y = listtoarr(results_list, Yflag=True)
+    # data = np.nan_to_num(data_y).astype(np.uint16)
+    #
+    # end = time.time()
+    # print(end - start)
+    #
+    # dicom_prefix = 'Phantom'
+    # seriesdescription = ['GeoCorrection']
+    #
+    # export_path = '/Users/youngwang/Desktop/GeoCorrection/After'
+    # PatientName = 'Phantom'
+    # oct_to_dicom(data, PatientName=PatientName,
+    #              seriesdescription=seriesdescription[0],
+    #              dicom_folder=export_path,
+    #              dicom_prefix=dicom_prefix)
+    #
+    # with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
+    #     np.save(f, data)
 
-    data_y = listtoarr(results_list, Yflag=True)
-    data = np.nan_to_num(data_y).astype(np.uint16)
+    from scipy import interpolate
 
-    end = time.time()
-    print(end - start)
+    from interpolation.splines import UCGrid, CGrid, nodes
+    from interpolation.splines import LinearSpline, CubicSpline
 
-    dicom_prefix = 'Phantom'
-    seriesdescription = ['GeoCorrection']
 
-    export_path = '/Users/youngwang/Desktop/GeoCorrection/After'
-    PatientName = 'Phantom'
-    oct_to_dicom(data, PatientName=PatientName,
-                 seriesdescription=seriesdescription[0],
-                 dicom_folder=export_path,
-                 dicom_prefix=dicom_prefix)
 
-    with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
-        np.save(f, data)
+
+    # start = time.time()
+    # # x = np.arange(-165,165,2)
+    # # y = np.arange(-256,256,2)
+    # # grid = UCGrid((-165,165, 10), (-256,256, 10))
+    # # gp = nodes(grid)
+    #
+    # a = np.array([-165, -256])  # lower boundaries
+    # b = np.array([165, 256])  # upper boundaries
+    # orders = np.array([100, 100])  # 50 points along each dimension
+    # values = np.sin(gp[:,0]**2+gp[:,1]**2)
+    # x = UCGrid((-165, 165, 100), (-256, 256, 100))
+    # newgrid = nodes(x)
+    #
+    # lin = LinearSpline(a, b, orders, values)
+    #
+    # V = lin(newgrid)
+
+    # S = np.random.random((10 ** 6, 3))  # coordinates at which to evaluate the splines
+
+    # multilinear
+    # lin = LinearSpline(a, b, orders, values)
+    # V = lin(S)
+    # xx,yy = np.meshgrid(x,y)
+
+    # z = np.sin(gp[:,0]**2+gp[:,1]**2)
+    # newgrid = UCGrid((-165,165,0.5), (-256,256,0.5))
+
+    # f = interp2d(x,y,z)
+    # f = interp2d([-165,-256],[165,256],[0.5,0.5],z)
+    #
+    # xnew = np.arange(-165,165,0.5)
+    # ynew = np.arange(-256,256,0.5)
+    # znew = f(xnew,ynew)
+    # end = time.time()
+    # print(end- start )
+    # plt.imshow(V)
+    # plt.show()
+
+    # nx = 50
+    # ny = 37
+    # xv, xh = np.linspace(0, 1, nx, endpoint=True, retstep=True)
+    # yv, yh = np.linspace(0, 2 * np.pi, ny, endpoint=False, retstep=True)
+    # x, y = np.meshgrid(xv, yv, indexing='ij')
+    #
+    # test_function = lambda x, y: np.exp(x) * np.exp(np.sin(y))
+    # f = test_function(x, y)
+    # test_x = -xh / 2.0
+    # test_y = 271.43
+    # fa = test_function(test_x, test_y)
+    #
+    # ax = np.arange(-165, 165, 2)
+    # ay = np.arange(-165, 165, 2)
+    # interpolater = interp2d([0, 0], [1, 2 * np.pi], [xh, yh], f, k=5, p=[False, True], e=[1, 0])
+    # fe = interpolater(ax, ay)
+
+    # from fast_interp import interp2d
+    # import numpy as np
+    #
+    # # nx = 50
+    # # ny = 37
+    # # xv, xh = np.linspace(0, 1,       nx, endpoint=True,  retstep=True)
+    # # yv, yh = np.linspace(0, 2*np.pi, ny, endpoint=False, retstep=True)
+    # x = np.arange(-165, 165, 2)
+    # y = np.arange(-256,256,2)
+    #
+    # xx, yy = np.meshgrid(x,y)
+    #
+    # test_function = lambda x, y: 2*np.exp(x)*np.exp(np.sin(y))
+    # f = np.sin(xx**2+yy**2)
+    # # plt.imshow(f)
+    # # plt.show()
+    # # test_x = 0.05
+    # # test_y = 271.43
+    # # fa = test_function(test_x, test_y)
+    #
+    # interpolater = interp2d([-165,-256], [165,256], [2,2], f, k=3)
+    # # fe = interpolater(test_x, test_y)
+    # xnew = np.arange(-165, 165, 2)
+    # ynew = np.arange(-256,256,2)
+    # xxn, yyn = np.meshgrid(x, y)
+    #
+    # # xv = np.linspace(0, 1,       3*nx, endpoint=True,  retstep=True)
+    # # yv = np.linspace(0, 2*np.pi, 3*ny, endpoint=False, retstep=True)
+    # fe = interpolater(xxn, yyn)
+    # # plt.imshow(f)
+    # # plt.show()
+    # fig,ax = plt.subplots(1,2)
+    # ax[0].imshow(f)
+    # ax[1].imshow(fe)
+    # plt.show()
+    #
+
+
