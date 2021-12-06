@@ -220,6 +220,11 @@ def cooridCO(test_slice):
 
     # Interpolate unstructured D-D data,
     # points, pixel values, points at which to interpolate the data
+
+    #_iz.reshape(i_dim * zdim, 2): numpy stores arrays in row-major order
+    #This means that the resulting two-column array will first contain all the x values,
+    # then all the y values rather than containing pairs of (x,y) in each row.
+
     v = griddata(_iz.reshape(i_dim * zdim, 2), _v.flatten(), (xq, zq), method='linear')
 
     return np.fliplr(v) # flip it from left to right aka horizontal flip
