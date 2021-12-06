@@ -94,7 +94,7 @@ def clean(data):
     return data
 
 
-def oct_to_dicom(data, PatientName, seriesdescription,
+def oct_to_dicom(data,resolutionx,resolutiony, PatientName, seriesdescription,
                  dicom_folder, dicom_prefix):
     """
     convert pixel array [512,512,330] to DICOM format
@@ -137,8 +137,7 @@ def oct_to_dicom(data, PatientName, seriesdescription,
         # 1cm / 512 = 0.02 mm, needs to check with rob
         # this spacing should be calculated as radiant/pixel then mm to pixel
         #
-        #0.04 is expermentially determined 2cm/512 = 0.04 mm
-        ds.PixelSpacing = [0.04, 0.04]  # pixel spacing in x, y planes [mm]
+        ds.PixelSpacing = [resolutionx, resolutiony]  # pixel spacing in x, y planes [mm]
         ds.SliceThickness = 0.03  # slice thickness in axial(z) direction [mm]
         ds.SpacingBetweenSlices = 0.03  # slice spacing in axial(z) direction [mm]
         ds.SliceLocation = '%0.2f' % z  # slice location in axial(z) direction
@@ -242,44 +241,50 @@ if __name__ == '__main__':
 
     oct_files.sort()
 
-    raw_data = load_from_oct_file(oct_files[0])
+    # raw_data = load_from_oct_file(oct_files[0])
+    #
+    # start = time.time()
+    #
+    # x_list = arrTolist(raw_data, Yflag=False)
+    #
+    # with Pool(processes=cpu_count()) as p:
+    #     results_list = p.map(cooridCO, x_list)
+    #
+    #     p.close()
+    #     p.join()
+    #
+    # data_x = listtoarr(results_list, Yflag=False)
+    # data_xc = np.nan_to_num(data_x).astype(np.uint16)
+    #
+    # y_list = arrTolist(data_xc, Yflag=True)
+    #
+    # with Pool(processes=cpu_count()) as p:
+    #     results_list = p.map(cooridCO, y_list)
+    #
+    #     p.close()
+    #     p.join()
+    #
+    # data_y = listtoarr(results_list, Yflag=True)
+    # data = np.nan_to_num(data_y).astype(np.uint16)
+    #
+    # end = time.time()
+    # print(end - start)
 
-    start = time.time()
-
-    x_list = arrTolist(raw_data, Yflag=False)
-
-    with Pool(processes=cpu_count()) as p:
-        results_list = p.map(cooridCO, x_list)
-
-        p.close()
-        p.join()
-
-    data_x = listtoarr(results_list, Yflag=False)
-    data_xc = np.nan_to_num(data_x).astype(np.uint16)
-
-    y_list = arrTolist(data_xc, Yflag=True)
-
-    with Pool(processes=cpu_count()) as p:
-        results_list = p.map(cooridCO, y_list)
-
-        p.close()
-        p.join()
-
-    data_y = listtoarr(results_list, Yflag=True)
-    data = np.nan_to_num(data_y).astype(np.uint16)
-
-    end = time.time()
-    print(end - start)
-
+    data = np.load('/Users/youngwang/Desktop/p3D.npy')
     dicom_prefix = 'Phantom'
     seriesdescription = ['GeoCorrection']
 
     export_path = '/Users/youngwang/Desktop/GeoCorrection/After'
     PatientName = 'Phantom'
-    oct_to_dicom(data, PatientName=PatientName,
+
+    # checked against the test phantom
+    resolutionx,resolutiony = 0.0325, 0.034
+    oct_to_dicom(data,resolutionx= resolutionx,
+                 resolutiony=resolutiony,
+                 PatientName=PatientName,
                  seriesdescription=seriesdescription[0],
                  dicom_folder=export_path,
                  dicom_prefix=dicom_prefix)
-
-    with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
-        np.save(f, data)
+    #
+    # with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
+    #     np.save(f, data)
