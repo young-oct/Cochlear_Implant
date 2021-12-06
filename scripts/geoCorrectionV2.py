@@ -137,7 +137,8 @@ def oct_to_dicom(data, PatientName, seriesdescription,
         # 1cm / 512 = 0.02 mm, needs to check with rob
         # this spacing should be calculated as radiant/pixel then mm to pixel
         #
-        ds.PixelSpacing = [0.02, 0.02]  # pixel spacing in x, y planes [mm]
+        #0.04 is expermentially determined 2cm/512 = 0.04 mm
+        ds.PixelSpacing = [0.04, 0.04]  # pixel spacing in x, y planes [mm]
         ds.SliceThickness = 0.03  # slice thickness in axial(z) direction [mm]
         ds.SpacingBetweenSlices = 0.03  # slice spacing in axial(z) direction [mm]
         ds.SliceLocation = '%0.2f' % z  # slice location in axial(z) direction
