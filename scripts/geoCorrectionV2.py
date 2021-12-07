@@ -231,8 +231,9 @@ def valueRemap(dis_image):
     return np.ravel(_v)
 
 
-def polar2cart(tri, values, xq, zq):
+def polar2cart(tri, xq, zq,values):
     values = valueRemap(values)
+
     """interpolate values from the target grid points"""
 
     # initilize interpolator
@@ -272,15 +273,15 @@ if __name__ == '__main__':
 
     x_list = arrTolist(raw_data, Yflag=False)
 
-    func = partial(polar2cart, tri = tri, xq =xq, zq = zq)
-
+    func = partial(polar2cart,tri, xq, zq)
     start = time.time()
+
     with Pool(processes=cpu_count()) as p:
         results_list = p.map(func, x_list)
 
         p.close()
         p.join()
-    #
+
     data_x = listtoarr(results_list, Yflag=False)
     data_xc = np.nan_to_num(data_x).astype(np.uint16)
 
@@ -298,14 +299,13 @@ if __name__ == '__main__':
     end = time.time()
     print(end - start)
 
-    data = np.load('/Users/youngwang/Desktop/p3D.npy')
     dicom_prefix = 'Phantom'
     seriesdescription = ['GeoCorrection']
 
     export_path = '/Users/youngwang/Desktop/GeoCorrection/After'
     PatientName = 'Phantom'
 
-    #checked against the test phantom
+    # checked against the test phantom
     resolutionx, resolutiony = 0.0325, 0.034
     oct_to_dicom(data, resolutionx=resolutionx,
                  resolutiony=resolutiony,
@@ -314,5 +314,5 @@ if __name__ == '__main__':
                  dicom_folder=export_path,
                  dicom_prefix=dicom_prefix)
 
-    # with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
-    #     np.save(f, data)
+    with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
+        np.save(f, data)
