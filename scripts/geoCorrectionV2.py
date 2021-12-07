@@ -3,12 +3,19 @@ import numpy as np
 from OssiviewBufferReader import OssiviewBufferReader
 from os.path import join, isfile
 from pydicom.uid import generate_uid
+from scipy.spatial import Delaunay
+from scipy.interpolate import LinearNDInterpolator
 import os
 from matplotlib import pyplot as plt
 from scipy.interpolate import griddata
 import math
 import time
+from functools import partial
+
+from numba.experimental import jitclass
+
 from multiprocessing import cpu_count, Pool, set_executable
+from numba import jit, njit
 
 
 def arrTolist(volume, Yflag=False):
@@ -94,7 +101,7 @@ def clean(data):
     return data
 
 
-def oct_to_dicom(data,resolutionx,resolutiony, PatientName, seriesdescription,
+def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
                  dicom_folder, dicom_prefix):
     """
     convert pixel array [512,512,330] to DICOM format
@@ -178,29 +185,27 @@ def oct_to_dicom(data,resolutionx,resolutiony, PatientName, seriesdescription,
     return all_files_exist
 
 
-def cooridCO(test_slice):
-    '''since X and Y correction can be done independently with respect to Z,
+@jit(nopython=True)
+def getPolarco():
+    '''obtian correct polar coordinates from the distorted image
+
+    since X and Y correction can be done independently with respect to Z,
     here we replace X_dim, Y_dim mentioend in Josh's proposal as i_dim
     for detailed math, see johs's proposal
-
     we can do this because
-    (1) X_dim = Y_dim = 512
+    (1) i_dim = X_dim = Y_dim = 512
     (2) azimuth and elevation are roughly the same 10 degrees (according to Dan)
     (3) 3D geometirc correction can be decomposed into two independent 2D correction
-    please see "Real-time correction of geometric distortion artifacts
-     in large-volume optical coherence tomography" paper
+    please see "Real-time correction of geometric distortion artifact
+     in large-volume optical coherence tomography paper'''
 
+    i_dim, zdim, zmax = 512,330,int(330 * 4)
+    degree = 10
 
-    zdim = 330, zmax = 4*330 (works well but a bit magic number)
-    '''
-
-    i_dim, zdim, zmax = 512, 330, 330 * 4
-    _iz = np.zeros((i_dim, zdim, 2))  # contruct iz plane
-    _v = np.zeros((i_dim, zdim))
-
+    _iz = np.zeros((i_dim, zdim, 2))  # construct iz plane
     i0, z0 = int(i_dim / 2), zmax  # i0 is half of the i dimension
 
-    i_phi = math.radians(10)  # converting from degree to radiant
+    i_phi = math.radians(degree)  # converting from degree to radiant
 
     ki = i_dim / (2 * i_phi)  # calculate pixel scaling factor for i dimension
     kz = 0.8  # calculate pixel scaling factor for z dimension, it should be Zmax/D, this is
@@ -212,22 +217,43 @@ def cooridCO(test_slice):
                 (z + kz * z0) * math.sin((i - i0) / ki) * math.cos((i - i0) / ki) + i0,
                 (z + kz * z0) * math.cos((i - i0) / ki) * math.cos((i - i0) / ki) - kz * z0]
 
-            _v[i, z] = test_slice[i, -z] # store the pixel date temporally and flip along the colume
-                                        #axis
+        # _iz.reshape(i_dim * zdim, 2): numpy stores arrays in row-major order
+        # This means that the resulting two-column array will first contain all the x values,
+        # then all the y values rather than containing pairs of (x,y) in each row
+    _iz = _iz.reshape(i_dim * zdim, 2)
+    return _iz
 
-    xq, zq = np.mgrid[0:i_dim, 0:zdim]  # create a rectangular grid out of an array of x values
-    # and an array of y values.
 
-    # Interpolate unstructured D-D data,
-    # points, pixel values, points at which to interpolate the data
+@jit(nopython=True)
+def valueRemap(dis_image):
+    """remap the data to match with the correct orientation"""
 
-    #_iz.reshape(i_dim * zdim, 2): numpy stores arrays in row-major order
-    #This means that the resulting two-column array will first contain all the x values,
-    # then all the y values rather than containing pairs of (x,y) in each row.
+    _v = np.zeros(dis_image.shape)
+    for i in range(dis_image.shape[0]):
+        for z in range(dis_image.shape[1]):  # pixel coordinates conversion
 
-    v = griddata(_iz.reshape(i_dim * zdim, 2), _v.flatten(), (xq, zq), method='linear')
+            _v[i, z] = dis_image[i, -z]  # store the pixel date temporally and flip along the colume
+            # axis
+    return np.ravel(_v)
 
-    return np.fliplr(v) # flip it from left to right aka horizontal flip
+
+def polar2cart(tri, values, xq, zq):
+    values = valueRemap(values)
+    """interpolate values from the target grid points"""
+
+    # initilize interpolator
+    interpolator = LinearNDInterpolator(tri, values)
+
+    # interpolate values from from with respect to the targeted
+    # cartisan coordinates
+    valueUpdate = interpolator(xq, zq)
+
+    return np.fliplr(valueUpdate)
+
+
+def iniTri(polrcoordinate):
+    '''initialize triangulation'''
+    return Delaunay(polrcoordinate)
 
 
 if __name__ == '__main__':
@@ -241,34 +267,42 @@ if __name__ == '__main__':
 
     oct_files.sort()
 
-    # raw_data = load_from_oct_file(oct_files[0])
+    raw_data = load_from_oct_file(oct_files[0])
+
+    #get polarcords & initialize triangularization
+    polarcords = getPolarco()
+    tri = iniTri(polarcords)
+
+    # construct Cartesian grids
+    xq, zq = np.mgrid[0:int(512), 0:int(330)]
+
+    x_list = arrTolist(raw_data, Yflag=False)
+
+    func = partial(polar2cart, tri = tri, xq =xq, zq = zq)
+
+    start = time.time()
+    with Pool(processes=cpu_count()) as p:
+        results_list = p.map(func, x_list)
+
+        p.close()
+        p.join()
     #
-    # start = time.time()
-    #
-    # x_list = arrTolist(raw_data, Yflag=False)
-    #
-    # with Pool(processes=cpu_count()) as p:
-    #     results_list = p.map(cooridCO, x_list)
-    #
-    #     p.close()
-    #     p.join()
-    #
-    # data_x = listtoarr(results_list, Yflag=False)
-    # data_xc = np.nan_to_num(data_x).astype(np.uint16)
-    #
-    # y_list = arrTolist(data_xc, Yflag=True)
-    #
-    # with Pool(processes=cpu_count()) as p:
-    #     results_list = p.map(cooridCO, y_list)
-    #
-    #     p.close()
-    #     p.join()
-    #
-    # data_y = listtoarr(results_list, Yflag=True)
-    # data = np.nan_to_num(data_y).astype(np.uint16)
-    #
-    # end = time.time()
-    # print(end - start)
+    data_x = listtoarr(results_list, Yflag=False)
+    data_xc = np.nan_to_num(data_x).astype(np.uint16)
+
+    y_list = arrTolist(data_xc, Yflag=True)
+
+    with Pool(processes=cpu_count()) as p:
+        results_list = p.map(func, y_list)
+
+        p.close()
+        p.join()
+
+    data_y = listtoarr(results_list, Yflag=True)
+    data = np.nan_to_num(data_y).astype(np.uint16)
+
+    end = time.time()
+    print(end - start)
 
     data = np.load('/Users/youngwang/Desktop/p3D.npy')
     dicom_prefix = 'Phantom'
@@ -277,14 +311,14 @@ if __name__ == '__main__':
     export_path = '/Users/youngwang/Desktop/GeoCorrection/After'
     PatientName = 'Phantom'
 
-    # checked against the test phantom
-    resolutionx,resolutiony = 0.0325, 0.034
-    oct_to_dicom(data,resolutionx= resolutionx,
+    #checked against the test phantom
+    resolutionx, resolutiony = 0.0325, 0.034
+    oct_to_dicom(data, resolutionx=resolutionx,
                  resolutiony=resolutiony,
                  PatientName=PatientName,
                  seriesdescription=seriesdescription[0],
                  dicom_folder=export_path,
                  dicom_prefix=dicom_prefix)
-    #
-    # with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
-    #     np.save(f, data)
+
+    with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
+        np.save(f, data)
