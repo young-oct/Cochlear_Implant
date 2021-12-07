@@ -9,6 +9,8 @@ import scipy.spatial.qhull as qhull
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+from OssiviewBufferReader import OssiviewBufferReader
+import math
 
 
 def arrTolist(volume, Yflag=False):
@@ -188,27 +190,29 @@ if __name__ == '__main__':
     m, n = 101,201
     mi, ni = 101,201
 
-    [Y,X]=np.meshgrid(np.linspace(0,1,n),np.linspace(0,2,m))
-    [Yi,Xi]=np.meshgrid(np.linspace(0,1,ni),np.linspace(0,2,mi))
+    xq, zq = np.mgrid[0:512, 0:int(330)] # create a rectangular grid out of an array of x values
 
-    xy=a
+    xy = np.zeros([xq.shape[0] * xq.shape[1], 2])
+    xy[:, 0] = xq.flatten()
+    xy[:, 1] = zq.flatten()
 
-    uv=np.zeros([Xi.shape[0]*Xi.shape[1],2])
-    # creation of a displacement field
-    uv[:,1]=0.5*Yi.flatten()+0.4
-    uv[:,0]=1.5*Xi.flatten()-0.7
-    values=np.zeros_like(X)
-    values[50:70,90:150]=100.
 
-    #Computed once and for all !
-    tri = interp_tri(xy)
+    values = stack.flatten()
+    # # creation of a displacement field
+    # uv[:,1]=0.5*Yi.flatten()+0.4
+    # uv[:,0]=1.5*Xi.flatten()-0.7
+    # values=np.zeros_like(X)
+    # values[50:70,90:150]=100.
+    #
+    # #Computed once and for all !
+    tri = interp_tri(a)
     t0=time.time()
-    for i in range(0,100):
-      values_interp_Qhull=interpolate(values.flatten(),tri,uv,2).reshape(Xi.shape[0],Xi.shape[1])
-    t_q=(time.time()-t0)/100
-
-    t0=time.time()
-    values_interp_griddata=spint.griddata(xy,values.flatten(),uv,fill_value=0).reshape(values.shape[0],values.shape[1])
-    t_g=time.time()-t0
-
-    print("Speed-up:", t_g/t_q)
+    for i in range(0,3):
+        values_interp_Qhull=interpolate(values.flatten(),tri,xy,2).reshape(xq.shape[0],xq.shape[1])
+    t_q=(time.time()-t0)/3
+    #
+    # t0=time.time()
+    # values_interp_griddata=spint.griddata(xy,values.flatten(),uv,fill_value=0).reshape(values.shape[0],values.shape[1])
+    # t_g=time.time()-t0
+    #
+    # print("Speed-up:", t_g/t_q)
