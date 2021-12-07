@@ -5,15 +5,9 @@ from os.path import join, isfile
 from pydicom.uid import generate_uid
 from scipy.spatial import Delaunay
 from scipy.interpolate import LinearNDInterpolator
-import os
-from matplotlib import pyplot as plt
-from scipy.interpolate import griddata
 import math
 import time
 from functools import partial
-
-from numba.experimental import jitclass
-
 from multiprocessing import cpu_count, Pool, set_executable
 from numba import jit, njit
 
@@ -320,5 +314,5 @@ if __name__ == '__main__':
                  dicom_folder=export_path,
                  dicom_prefix=dicom_prefix)
 
-    with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
-        np.save(f, data)
+    # with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
+    #     np.save(f, data)
