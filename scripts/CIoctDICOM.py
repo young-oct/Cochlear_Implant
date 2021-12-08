@@ -1,3 +1,15 @@
+# -*- coding: utf-8 -*-
+# @Time    : 2021-12-08 7:59 a.m.
+# @Author  : young wang
+# @FileName: CIoctDICOM.py
+# @Software: PyCharm
+
+"""this script performs the following
+(1). read .oct file into a numpy array
+(2). geometrically correct the distorted view coordinates
+(3). export the .oct volume into the DICOM format
+(4). save the geometrically correct volume into numpy array for future analysis"""
+
 import pydicom
 import numpy as np
 from OssiviewBufferReader import OssiviewBufferReader
@@ -73,7 +85,7 @@ def imag2uint(data):
 
     # remove the low and high bounds of the pixel intensity data points
     # 45 and 130dB are heuristically chosen
-    data = np.clip(data, 50, np.max(data))
+    data = np.clip(data, 65, np.max(data))
     # pixel intensity normalization
     # for detail, please see wiki page
     # https://en.wikipedia.org/wiki/Normalization_(image_processing)
@@ -303,7 +315,7 @@ if __name__ == '__main__':
     seriesdescription = ['Full Insertion']
 
     export_path = '/Users/youngwang/Desktop/GeoCorrection/cadaver/full insertion/DICOM'
-    PatientName = 'CI-cadaver'
+    PatientName = 'ci-cadaver'
 
     # checked against the test phantom
     resolutionx, resolutiony = 0.0325, 0.034
