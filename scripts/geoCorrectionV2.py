@@ -254,10 +254,10 @@ def iniTri(polrcoordinate):
 if __name__ == '__main__':
 
     oct_files = []
-    directory = '/Users/youngwang/Desktop/GeoCorrection'
+    directory = '/Users/youngwang/Desktop/GeoCorrection/patient'
     import glob
 
-    for filepath in glob.iglob(r'/Users/youngwang/Desktop/GeoCorrection/*.oct'):
+    for filepath in glob.iglob(r'/Users/youngwang/Desktop/GeoCorrection/patient/*.oct'):
         oct_files.append(filepath)
 
     oct_files.sort()
@@ -299,11 +299,11 @@ if __name__ == '__main__':
     end = time.time()
     print(end - start)
 
-    dicom_prefix = 'Phantom'
-    seriesdescription = ['GeoCorrection']
+    dicom_prefix = 'patient CI'
+    seriesdescription = ['CI']
 
-    export_path = '/Users/youngwang/Desktop/GeoCorrection/After'
-    PatientName = 'Phantom'
+    export_path = '/Users/youngwang/Desktop/GeoCorrection/patient/DICOM'
+    PatientName = 'patient'
 
     # checked against the test phantom
     resolutionx, resolutiony = 0.0325, 0.034
@@ -314,5 +314,9 @@ if __name__ == '__main__':
                  dicom_folder=export_path,
                  dicom_prefix=dicom_prefix)
 
-    with open('/Users/youngwang/Desktop/p3D.npy', 'wb') as f:
+    from os.path import join
+
+    npy_name = PatientName+'.npy'
+    npy_path = join(directory,npy_name)
+    with open(npy_path, 'wb') as f:
         np.save(f, data)
