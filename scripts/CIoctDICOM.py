@@ -85,7 +85,7 @@ def imag2uint(data):
 
     # remove the low and high bounds of the pixel intensity data points
     # 45 and 130dB are heuristically chosen
-    data = np.clip(data, 65, np.max(data))
+    data = np.clip(data, 50, np.max(data))
     # pixel intensity normalization
     # for detail, please see wiki page
     # https://en.wikipedia.org/wiki/Normalization_(image_processing)
@@ -266,15 +266,17 @@ def iniTri(polrcoordinate):
 if __name__ == '__main__':
 
     oct_files = []
-    directory = '/Users/youngwang/Desktop/GeoCorrection/cadaver/full insertion'
+    directory = '/Users/youngwang/Desktop/GeoCorrection/cadaver/full migration'
     import glob
 
-    for filepath in glob.iglob(r'/Users/youngwang/Desktop/GeoCorrection/cadaver/full insertion/*.oct'):
+    path = directory+'/*.oct'
+    for filepath in glob.iglob(path):
         oct_files.append(filepath)
 
     oct_files.sort()
 
     raw_data = load_from_oct_file(oct_files[0])
+    data = raw_data
 
     #get polarcords & initialize triangularization
     polarcords = getPolarco()
@@ -310,15 +312,24 @@ if __name__ == '__main__':
 
     end = time.time()
     print(end - start)
+    # data = raw_data
 
-    dicom_prefix = 'CI-cadaver-FI-I'
-    seriesdescription = ['Full Insertion']
+    dicom_prefix = 'CI-cadaver'
 
-    export_path = '/Users/youngwang/Desktop/GeoCorrection/cadaver/full insertion/DICOM'
+    seriesdescription = ['full migration']
+
+    export_path = directory+'/DICOM'
+    from os import path
+    import os
+    try:
+        os.makedirs(export_path)
+    except FileExistsError:
+        # directory already exists
+        pass
+
     PatientName = 'ci-cadaver'
-
     # checked against the test phantom
-    resolutionx, resolutiony = 0.0325, 0.034
+    resolutionx, resolutiony = 0.033, 0.033
     oct_to_dicom(data, resolutionx=resolutionx,
                  resolutiony=resolutiony,
                  PatientName=PatientName,
