@@ -183,7 +183,7 @@ def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
         dicom_file = join(dicom_folder, "%s%05d.dcm" % (dicom_prefix, i))
 
         pixel_data = data[:, :, i]
-        pixel_data[pixel_data <= 50] = 0
+        # pixel_data[pixel_data <= 50] = 0
         ds.PixelData = pixel_data.tobytes()
         ds.save_as(dicom_file)
         dss.append(ds)
@@ -267,6 +267,8 @@ if __name__ == '__main__':
 
     oct_files = []
     directory = '/Users/youngwang/Desktop/GeoCorrection/cadaver/full migration'
+    # directory = '/Users/youngwang/Desktop/GeoCorrection/patient'
+
     import glob
 
     path = directory+'/*.oct'
@@ -314,9 +316,13 @@ if __name__ == '__main__':
     print(end - start)
     # data = raw_data
 
-    dicom_prefix = 'CI-cadaver'
+    # dicom_prefix = 'CI-cadaver'
+    dicom_prefix = 'patient CI'
 
-    seriesdescription = ['full migration']
+
+    # seriesdescription = ['full migration']
+    seriesdescription = ['CI']
+
 
     export_path = directory+'/DICOM'
     from os import path
@@ -327,7 +333,10 @@ if __name__ == '__main__':
         # directory already exists
         pass
 
-    PatientName = 'ci-cadaver'
+    # data = np.load('/Users/youngwang/Desktop/patient.npy')
+    # PatientName = 'ci-cadaver'
+    PatientName = 'patient'
+
     # checked against the test phantom
     resolutionx, resolutiony = 0.033, 0.033
     oct_to_dicom(data, resolutionx=resolutionx,
