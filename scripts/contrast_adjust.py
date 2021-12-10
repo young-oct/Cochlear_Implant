@@ -5,13 +5,15 @@
 # @Software: PyCharm
 """read volume array and adjust the conrast, save it to DICOM
 """
-
-from skimage import data, exposure, img_as_float
+import os
+from scipy import ndimage
+from skimage import exposure
 import numpy as np
 from pydicom.uid import generate_uid
 import pydicom
 from os.path import join, isfile
 import matplotlib.pyplot as plt
+import glob
 
 
 def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
@@ -97,60 +99,75 @@ def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
         all_files_exist = all_files_exist and isfile(dicom_file)
     return all_files_exist
 
+
 ''
 if __name__ == '__main__':
-    
-    data = np.load('/Users/youngwang/Desktop/GeoCorrection/cadaver/partial insertion I/ci-cadaver.npy')
-    data =data.astype('float64')
-    data = data/data.max()
-    # new_data = exposure.equalize_adapthist(data, clip_limit=0.7)*466
-    # clip = 0.1
+
+    desktop_loc = os.path.expanduser('~/Desktop/GeoCorrection')
+    patient_uid = 'patient'
+    # study_uid = 'patient'
+    # input_dir = join(desktop_loc, patient_uid, study_uid)
+
+    study_uid = 'patient'
+    input_dir = join(desktop_loc, patient_uid)
+    file_extension = '*.npy'
+
+    data_path = []
+    for filename in glob.glob(join(input_dir, file_extension)):
+        data_path.append(filename)
+
+    volume_data = np.load(data_path[-1])
+
+    # remove speckles with median filter
+    # volume_data = ndimage.median_filter(volume_data, size=3)
+
+    #index is obtianed asssuming the bottom layer as 0,
+    # if index = 250, it means top_remove: 80 (330-250) slices are removed from
+    # the top
+    top_remove = 150
+    index = int(330-top_remove)
+
+    top_stack = volume_data[:, :, index::].astype('float64')
+    bottom_stack = volume_data[:, :, 0:index].astype('float64')
+
+    opacity_factor = 0.25
+    top_stack *= opacity_factor
+
+    top_stack = top_stack.astype('uint16')
+    volume_data[:, :, index::] = top_stack
+
+    gamma_factor = np.log(466)/np.log(np.max(bottom_stack))
+    gamma_factor = np.around(gamma_factor, 2)
+    print(np.max(bottom_stack))
+    bottom_stack = exposure.adjust_gamma(bottom_stack, gamma_factor)
+    print(np.max(bottom_stack))
+
     #
-    # p2, p98 = np.percentile(np.ravel(data), (clip, 100-clip))
-    # new_data = exposure.rescale_intensity(data, in_range=(p2, p98))*466
+    desktop_loc = os.path.expanduser('~/Desktop/GeoCorrection')
+    operation_uid = 'contrast enhancement'
+    dst_uid = 'DICOM'
 
-    new_data = exposure.adjust_gamma(data, 0.2)
-
-    new_data = 466*new_data/new_data.max()
-
-    new_data = new_data.astype(np.uint16)
-
-    directory = '/Users/youngwang/Desktop/GeoCorrection/equalization'
-
-
-    # dicom_prefix = 'CI-cadaver'
-    dicom_prefix = 'equ'
-
-    seriesdescription = ['partial insertion I']
-
-
-    export_path = directory+'/DICOM'
-    from os import path
-    import os
+    input_dir = join(desktop_loc, operation_uid, study_uid,dst_uid)
     try:
-        os.makedirs(export_path)
+        os.makedirs(input_dir)
     except FileExistsError:
         # directory already exists
         pass
 
+    dicom_prefix = 'ci'
 
-    PatientName = 'EQU'
+    top_stack = top_stack.astype('uint16')
+    bottom_stack = bottom_stack.astype('uint16')
 
+    volume_data[:, :, index::] = top_stack
+    volume_data[:, :, 0:index] = bottom_stack
+    # volume_data[volume_data >= 466] = 0
+    # volume_data = volume_data.astype('uint16')
     # checked against the test phantom
     resolutionx, resolutiony = 0.033, 0.033
-    oct_to_dicom(new_data, resolutionx=resolutionx,
+    oct_to_dicom(volume_data, resolutionx=resolutionx,
                  resolutiony=resolutiony,
-                 PatientName=PatientName,
-                 seriesdescription=seriesdescription[0],
-                 dicom_folder=export_path,
+                 PatientName=patient_uid,
+                 seriesdescription=study_uid,
+                 dicom_folder=input_dir,
                  dicom_prefix=dicom_prefix)
-
-    fig,ax = plt.subplots(1,2)
-    ax[0].hist(np.ravel(data))
-    ax[1].hist(np.ravel(new_data))
-    plt.show()
-
-    # npy_name = PatientName+'.npy'
-    # npy_path = join(directory,npy_name)
-    # with open(npy_path, 'wb') as f:
-    #     np.save(f, data)
