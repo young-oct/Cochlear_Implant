@@ -70,6 +70,7 @@ def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
         ds.InstitutionAddress = '1344 Summer St., #55, Halifax, NS, Canada'
         ds.StudyDescription = 'Example DICOM export'
         ds.StationName = 'Unit 1'
+        ds.RelativeOpacity = 0.1
         ds.SeriesDescription = seriesdescription
         ds.PhysiciansOfRecord = ''
         ds.PerformingPhysicianName = ''
@@ -89,6 +90,7 @@ def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
         # # set highest and lowest pixel values
         ds.LargestImagePixelValue = 446
         ds.SmallestImagePixelValue = 50
+        ds
         dicom_file = join(dicom_folder, "%s%05d.dcm" % (dicom_prefix, i))
 
         pixel_data = data[:, :, i]
@@ -124,17 +126,20 @@ if __name__ == '__main__':
     #index is obtianed asssuming the bottom layer as 0,
     # if index = 250, it means top_remove: 80 (330-250) slices are removed from
     # the top
-    top_remove = 150
+    top_remove = 200
     index = int(330-top_remove)
 
     top_stack = volume_data[:, :, index::].astype('float64')
     bottom_stack = volume_data[:, :, 0:index].astype('float64')
 
-    opacity_factor = 0.25
+    opacity_factor = 0.4
     top_stack *= opacity_factor
 
     top_stack = top_stack.astype('uint16')
     volume_data[:, :, index::] = top_stack
+
+    scale_factor = 466/np.max(bottom_stack)
+    bottom_stack *= scale_factor
 
     gamma_factor = np.log(466)/np.log(np.max(bottom_stack))
     gamma_factor = np.around(gamma_factor, 2)
@@ -144,7 +149,7 @@ if __name__ == '__main__':
 
     #
     desktop_loc = os.path.expanduser('~/Desktop/GeoCorrection')
-    operation_uid = 'contrast enhancement'
+    operation_uid = 'alpha blending'
     dst_uid = 'DICOM'
 
     input_dir = join(desktop_loc, operation_uid, study_uid,dst_uid)
@@ -156,6 +161,7 @@ if __name__ == '__main__':
 
     dicom_prefix = 'ci'
 
+    PatientName = 'Test'
     top_stack = top_stack.astype('uint16')
     bottom_stack = bottom_stack.astype('uint16')
 
@@ -166,8 +172,13 @@ if __name__ == '__main__':
     # checked against the test phantom
     resolutionx, resolutiony = 0.033, 0.033
     oct_to_dicom(volume_data, resolutionx=resolutionx,
+                 # resolutiony=resolutiony,
+                 # PatientName=patient_uid,
+                 # seriesdescription=study_uid,
+                 # dicom_folder=input_dir,
+                 # dicom_prefix=dicom_prefix)
                  resolutiony=resolutiony,
-                 PatientName=patient_uid,
+                 PatientName=PatientName,
                  seriesdescription=study_uid,
                  dicom_folder=input_dir,
                  dicom_prefix=dicom_prefix)
