@@ -106,12 +106,12 @@ def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
 if __name__ == '__main__':
 
     desktop_loc = os.path.expanduser('~/Desktop/GeoCorrection')
-    patient_uid = 'patient'
-    # study_uid = 'patient'
-    # input_dir = join(desktop_loc, patient_uid, study_uid)
+    patient_uid = 'cadaver'
+    study_uid = 'full migration'
+    input_dir = join(desktop_loc, patient_uid, study_uid)
 
-    study_uid = 'patient'
-    input_dir = join(desktop_loc, patient_uid)
+    # study_uid = 'patient'
+    # input_dir = join(desktop_loc, patient_uid)
     file_extension = '*.npy'
 
     data_path = []
@@ -126,13 +126,15 @@ if __name__ == '__main__':
     #index is obtianed asssuming the bottom layer as 0,
     # if index = 250, it means top_remove: 80 (330-250) slices are removed from
     # the top
-    top_remove = 200
+    top_remove = 40
     index = int(330-top_remove)
 
     top_stack = volume_data[:, :, index::].astype('float64')
     bottom_stack = volume_data[:, :, 0:index].astype('float64')
 
-    opacity_factor = 0.4
+    # opacity_factor = 0.35
+    opacity_factor = 1
+
     top_stack *= opacity_factor
 
     top_stack = top_stack.astype('uint16')
@@ -149,10 +151,13 @@ if __name__ == '__main__':
 
     #
     desktop_loc = os.path.expanduser('~/Desktop/GeoCorrection')
-    operation_uid = 'alpha blending'
+    operation_uid = 'contrast enhancement'
     dst_uid = 'DICOM'
 
-    input_dir = join(desktop_loc, operation_uid, study_uid,dst_uid)
+    input_dir = join(desktop_loc, operation_uid,
+                     patient_uid,
+                     study_uid,
+                     dst_uid)
     try:
         os.makedirs(input_dir)
     except FileExistsError:
@@ -161,24 +166,23 @@ if __name__ == '__main__':
 
     dicom_prefix = 'ci'
 
-    PatientName = 'Test'
+    # PatientName = 'Test'
     top_stack = top_stack.astype('uint16')
     bottom_stack = bottom_stack.astype('uint16')
 
     volume_data[:, :, index::] = top_stack
     volume_data[:, :, 0:index] = bottom_stack
     # volume_data[volume_data >= 466] = 0
-    # volume_data = volume_data.astype('uint16')
     # checked against the test phantom
     resolutionx, resolutiony = 0.033, 0.033
     oct_to_dicom(volume_data, resolutionx=resolutionx,
-                 # resolutiony=resolutiony,
-                 # PatientName=patient_uid,
-                 # seriesdescription=study_uid,
-                 # dicom_folder=input_dir,
-                 # dicom_prefix=dicom_prefix)
                  resolutiony=resolutiony,
-                 PatientName=PatientName,
+                 PatientName=patient_uid,
                  seriesdescription=study_uid,
                  dicom_folder=input_dir,
                  dicom_prefix=dicom_prefix)
+                 # resolutiony=resolutiony,
+                 # PatientName=PatientName,
+                 # seriesdescription=study_uid,
+                 # dicom_folder=input_dir,
+                 # dicom_prefix=dicom_prefix)
