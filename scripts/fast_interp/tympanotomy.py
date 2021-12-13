@@ -178,8 +178,34 @@ if __name__ == '__main__':
     tip_cor = tip_array[0]
     plt.scatter(np.median(pint[:,0]),np.median(pint[:,1]))
     plt.scatter(tip_cor[0],tip_cor[1])
-
     plt.show()
+
+
+    x1 = tip_cor[0]
+    y1 = tip_cor[1]
+
+    x2 = np.median(pint[:,0])
+    y2 = np.median(pint[:,1])
+
+    dy = y2 -y1
+    dx = x2 - x1
+
+    import math
+    rad = math.atan2(dy,dx)
+    degrees = math.degrees(rad)
+
+    points = []
+
+    portion = int(y2) - int(y1)
+    for i in range (int(y1),int(y2), 1):
+
+        scale = (i-int(y1))/portion
+        y = y1 + scale/math.cos(rad)
+        points.append((i,y))
+
+
+
+
 
 
 
