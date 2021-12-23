@@ -180,6 +180,6 @@ if __name__ == '__main__':
         # directory already exists
         pass
 
-    dicom_prefix = 'ear'
-    oct_to_Zeissdicom(oct_file,PatientName,
-                      seriesdescription, dicom_folder, dicom_prefix)
+    # dicom_prefix = 'ear'
+    # oct_to_Zeissdicom(oct_file,PatientName,
+    #                   seriesdescription, dicom_folder, dicom_prefix)

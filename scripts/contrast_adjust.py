@@ -106,12 +106,12 @@ def oct_to_dicom(data, resolutionx, resolutiony, PatientName, seriesdescription,
 if __name__ == '__main__':
 
     desktop_loc = os.path.expanduser('~/Desktop/GeoCorrection')
-    patient_uid = 'cadaver'
-    study_uid = 'full migration'
-    input_dir = join(desktop_loc, patient_uid, study_uid)
+    patient_uid = 'patient'
+    # study_uid = 'patient'
+    # input_dir = join(desktop_loc, patient_uid, study_uid)
 
     # study_uid = 'patient'
-    # input_dir = join(desktop_loc, patient_uid)
+    input_dir = join(desktop_loc, patient_uid)
     file_extension = '*.npy'
 
     data_path = []
